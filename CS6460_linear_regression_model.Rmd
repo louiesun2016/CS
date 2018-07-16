@@ -1,0 +1,575 @@
+---
+title: 'CS6460 Linear Regression Model'
+subtitle: "2018 Summer"
+output:
+  html_notebook:
+    code_folding: none
+    theme: default
+  html_document:
+    code_folding: none
+    theme: default
+  pdf_document: default
+---
+
+# Data
+
+
+# Objective
+
+It is a linear regression model that can predict the `Student Learning Outcomes` of students based on other variables, like students'spending time on this course, students' spending money on this course etc. R packages is used to fit the regression model. My current research only stick to linear regression.
+
+# Instructions
+
+Input: student learning outcomes calculated by SLO model(link:  ).
+Output: prediction analysis
+
+# Setup
+
+First of all, load the dataset into memory,we use .csv file in this model:
+
+```{r}
+# Create a data frame
+data<-read.csv('C:/SLO.csv')
+```
+
+```{r}
+#test the file
+print(is.data.frame(data))
+print(ncol(data))
+print(nrow(data))
+sal <- max(data$salary)
+print(sal)
+```
+
+## Load R packages
+
+Load any R packages that you will need to use. You can come back to this chunk, edit it and re-run to load any additional packages later.
+
+```{r}
+library(ggplot2)
+library(GGally)
+library(stringr)
+```
+
+packages can be installed using the regular `install.packages('<pkg name>')` command.
+
+# Data Preprocessing
+
+Before we start building models, we should clean up the dataset and perform any preprocessing steps that may be necessary.
+
+## 1. Drop rows with missing `SLO` value
+
+Since our goal is to model `Gross` revenue against other variables, rows that have missing `Gross` values are not useful to us.
+
+```{r}
+# TODO: Remove rows with missing Gross value
+df = df[is.na(df$SLO)!="TRUE",]
+dim(df)
+#df$SLO
+```
+
+## 2. Additional preprocessing 
+
+You can add anything that you would like to do in preprocessing in this part
+
+```{r}
+
+```
+
+## 3. Final preprocessed dataset
+
+Report the dimensions of the preprocessed dataset you will be using for modeling and evaluation, and print all the final column names.
+
+```{r}
+# TODO: Print the dimensions of the final preprocessed dataset and column names
+cat("Dataset has", dim(df)[1], "rows and", dim(df)[2], "columns", end="\n", file="")
+colnames(df)
+```
+
+# Evaluation Strategy
+
+In this section, a regression model will be built. In order to compare the performance, Root Mean Squared Error (RMSE) of the training and test at different training set sizes will be calculated.
+
+First, randomly sample 10-20% of the preprocessed dataset and keep that aside as the **test set**. Do not use these rows for training! The remainder of the preprocessed dataset is your **training data**.
+
+## 1. Numeric variables
+
+Use Linear Regression to predict `SLO` based on available _numeric_ variables. You can choose to include all or a subset of them.
+
+```{r}
+# TODO: Build & evaluate model 1 (numeric variables only)
+
+#df$Metascore = as.numeric(df$Metascore)
+trainingPercent = seq(from = 0.1, to = 1.0, by = 0.2)
+nPartition = length(trainingPercent)
+RMSE1Train = rep(-999, nPartition)
+RMSE1Test = rep(-999, nPartition)
+set.seed(10)
+for (i in 1 : nPartition) {
+  tmpMSETrain = rep(-999, 10)
+  tmpMSETest = rep(-999, 10)
+  tp = trainingPercent[i]
+  for (j in 1 : 10) {
+    samp = sample(1:nrow(df), round(tp * nrow(df)), replace = FALSE)
+    dfTrain = df[samp,]
+    dfTest = df[-samp,]
+    M1 = lm(Gross~Runtime +
+              Budget +
+              imdbRating +
+              imdbVotes +
+              tomatoMeter +
+              tomatoRating +
+              tomatoReviews +
+              tomatoFresh +
+              tomatoRotten +
+              tomatoUserMeter +
+              tomatoUserRating , dfTrain)
+    tmpMSETrain[j] = sqrt(mean(residuals(M1)^2))
+    tmpMSETest[j] = sqrt(mean((dfTest$Gross - predict(M1, newdata = dfTest))^2))
+ 
+  }
+  RMSE1Train[i] = mean(tmpMSETrain)
+  RMSE1Test[i] = mean(tmpMSETest)
+}
+RMSE1Train
+RMSE1Test
+df1 = data.frame(trainingSize = trainingPercent * nrow(df), trainingMSE =RMSE1Train, testingMSE = RMSE1Test)
+ggplot(df1, aes(trainingSize)) +
+  geom_line(aes(y = trainingMSE, color = 'train')) +
+  #stat_smooth(aes(y = trainingMSE, color = 'train')) +
+  geom_line(aes(y = testingMSE, color = 'test')) +
+  #stat_smooth(aes(y = testingMSE, color = 'test')) +
+  ggtitle("Question 1: RMSE vs train set size ") +
+  xlab("Train set size") +
+  ylab("RMSE") +
+  scale_color_manual(name = "RMSE", values = c(train='blue', test='red'))
+```
+
+## 2. Feature transformations
+
+Try to improve the prediction quality from **Task 1** as much as possible by adding feature transformations of the numeric variables. Explore both numeric transformations such as power transforms and non-numeric transformations of the numeric variables like binning (e.g. `is_budget_greater_than_3M`).
+
+```{r}
+# TODO: Build & evaluate model 2 (transformed numeric variables only)
+tbs ="Is_budget_greater_than_3M"
+
+temp =df$Budget
+
+a = which(temp > 3000000)
+b = numeric(length(temp)) #firt all 0s
+b[a] = 1  #then matched ones, fill 1s.
+mat=do.call(rbind,list(b)) #covert list into matrix
+mat=t(mat)
+colnames(mat) = tbs
+df = cbind(df, mat) #combine
+trainingPercent = seq(from = 0.1, to = 1.0, by = 0.2)
+nPartition = length(trainingPercent)
+RMSE2Train = rep(-999, nPartition)
+RMSE2Test = rep(-999, nPartition)
+set.seed(10)
+for (i in 1 : nPartition) {
+  tmpMSETrain = rep(-999, 10)
+  tmpMSETest = rep(-999, 10)
+  tp = trainingPercent[i]
+  for (j in 1 : 10) {
+    samp = sample(1:nrow(df), round(tp * nrow(df)), replace = FALSE)
+    dfTrain = df[samp,]
+    dfTest = df[-samp,]
+    M2 = lm(Gross~Runtime +
+              I(Budget^2) +
+              I(imdbRating^2) +
+              I(imdbVotes) +
+              I(tomatoMeter) +
+              tomatoRating +
+              tomatoReviews +
+              I(tomatoFresh^2) +
+              tomatoRotten +
+              tomatoUserMeter +
+              tomatoUserRating +
+              Is_budget_greater_than_3M, dfTrain)
+        tmpMSETrain[j] = sqrt(mean(residuals(M2)^2))
+        tmpMSETest[j] = sqrt(mean((dfTest$Gross - predict(M2, newdata = dfTest))^2))
+    
+  }
+  RMSE2Train[i] = mean(tmpMSETrain)
+  RMSE2Test[i] = mean(tmpMSETest)
+}
+RMSE2Train
+RMSE2Test
+
+
+df2 = data.frame(trainingSize = trainingPercent * nrow(df), trainingMSE =RMSE2Train, testingMSE = RMSE2Test)
+ggplot() +
+  geom_line(data=df1, aes(x=trainingSize, y = trainingMSE, color = 'train1')) +
+  geom_line(data=df1, aes(x=trainingSize, y = testingMSE, color = 'test1'))+ 
+  geom_line(data=df2, aes(x=trainingSize, y = trainingMSE, color = 'train2')) +
+  geom_line(data=df2, aes(x=trainingSize, y = testingMSE, color = 'test2')) +
+  ggtitle("Question 2: RMSE vs train set size ") +
+  xlab("Train set size") +
+  ylab("RMSE") +
+  scale_color_manual(name = "RMSE", values =c(train1='blue',test1='red',train2='green',test2='purple'))
+```
+## 3. Non-numeric variables
+
+Write code that converts genre, actors, directors, and other categorical variables to columns that can be used for regression (e.g. binary columns as you did in Project 1). Also process variables such as awards into more useful columns (again, like you did in Project 1). Now use these converted columns only to build your next model.
+
+```{r}
+# TODO: Build & evaluate model 3 (converted non-numeric variables only)
+library(tm)
+tbs = unique(str_trim(unlist(strsplit(df$Genre,split=","))) )
+tbs = tbs[tbs!="N/A"]
+
+temp = strsplit(df$Genre,split=",")  #unique table
+
+res = lapply(temp, function(x) {
+  x = str_trim(x) 
+  a = match(x, tbs)   #match onm the tab;e
+  b = numeric(length(tbs)) #firt all 0s
+  b[a] = 1  #then matched ones, fill 1s.
+  b
+})
+mat = do.call("rbind",res) #covert list into matrix
+dim(tbs)[1]
+colnames(mat) = tbs
+
+df = cbind(df, mat) #combine
+df$Genre = NULL
+
+# Director
+director = df$Director  # change name
+director = gsub(" ", "", director) # change name
+director = gsub(",", " ", director) # change name
+corp = Corpus(VectorSource(director)) # change name
+dtm = DocumentTermMatrix(corp)
+dtm_df = as.data.frame(as.matrix(dtm)) 
+termfreq = colSums(as.matrix(dtm))
+termFreqOrdered = termfreq[order(termfreq, decreasing = TRUE)]
+top = termFreqOrdered[1:10]  # change top K
+allName = names(dtm_df)
+topName = names(top)
+otherName = setdiff(allName, topName)
+topDirector = dtm_df[,topName]  # change name
+tmpOther = dtm_df[,otherName]
+tmpIndicator = rowSums(tmpOther)
+tmpIndicator[tmpIndicator > 1] = 1
+topDirector$otherDirector = tmpIndicator # change name
+rm(dtm_df)
+
+# Writer
+writer = df$Writer  # change name
+writer = gsub(" ", "", writer) # change name
+writer = gsub(",", " ", writer) # change name
+corp = Corpus(VectorSource(writer)) # change name
+dtm = DocumentTermMatrix(corp)
+dtm_df = as.data.frame(as.matrix(dtm)) 
+termfreq = colSums(as.matrix(dtm))
+termFreqOrdered = termfreq[order(termfreq, decreasing = TRUE)]
+top = termFreqOrdered[1:10]  # change top K
+allName = names(dtm_df)
+topName = names(top)
+otherName = setdiff(allName, topName)
+topWriter = dtm_df[,topName]  # change name
+tmpOther = dtm_df[,otherName]
+tmpIndicator = rowSums(tmpOther)
+tmpIndicator[tmpIndicator > 1] = 1
+topWriter$otherWriter = tmpIndicator # change name
+colnames(topWriter)[1] = 'unknown Author'
+colnames(topWriter)[2] = 'woodyallenWriter'
+rm(dtm_df)
+
+# Actors
+actors = df$Actors  # change name
+actors = gsub(" ", "", actors) # change name
+actors = gsub(",", " ", actors) # change name
+corp = Corpus(VectorSource(actors)) # change name
+dtm = DocumentTermMatrix(corp)
+dtm_df = as.data.frame(as.matrix(dtm)) 
+termfreq = colSums(as.matrix(dtm))
+termFreqOrdered = termfreq[order(termfreq, decreasing = TRUE)]
+top = termFreqOrdered[1:10]  # change top K
+allName = names(dtm_df)
+topName = names(top)
+otherName = setdiff(allName, topName)
+topActors = dtm_df[,topName]  # change name
+tmpOther = dtm_df[,otherName]
+tmpIndicator = rowSums(tmpOther)
+tmpIndicator[tmpIndicator > 1] = 1
+topActors$otherActors = tmpIndicator # change name
+rm(dtm_df)
+
+# Language
+lang = df$Language  # change name
+lang = gsub(" ", "", lang) # change name
+lang = gsub(",", " ", lang) # change name
+corp = Corpus(VectorSource(lang)) # change name
+dtm = DocumentTermMatrix(corp)
+dtm_df = as.data.frame(as.matrix(dtm)) 
+termfreq = colSums(as.matrix(dtm))
+termFreqOrdered = termfreq[order(termfreq, decreasing = TRUE)]
+top = termFreqOrdered[1:10]  # change top K
+allName = names(dtm_df)
+topName = names(top)
+otherName = setdiff(allName, topName)
+topLanguage = dtm_df[,topName]  # change name
+tmpOther = dtm_df[,otherName]
+tmpIndicator = rowSums(tmpOther)
+tmpIndicator[tmpIndicator > 1] = 1
+topLanguage$otherLanguage = tmpIndicator # change name
+rm(dtm_df)
+
+# Country
+country = df$Country  # change name
+country = gsub("," , " ", country) # change name
+corp = Corpus(VectorSource(country)) # change name
+dtm = DocumentTermMatrix(corp)
+dtm_df = as.data.frame(as.matrix(dtm)) 
+termfreq = colSums(as.matrix(dtm))
+termFreqOrdered = termfreq[order(termfreq, decreasing = TRUE)]
+top = termFreqOrdered[1:10]  # change top K
+allName = names(dtm_df)
+topName = names(top)
+otherName = setdiff(allName, topName)
+topCountry = dtm_df[,topName]  # change name
+tmpOther = dtm_df[,otherName]
+tmpIndicator = rowSums(tmpOther)
+tmpIndicator[tmpIndicator > 1] = 1
+topCountry$otherCountry = tmpIndicator # change name
+rm(dtm_df)
+
+
+
+
+myf2 = function(x) {
+  if(x != "N/A") {
+  temp = gsub("[a-zA-Z.]","",x)
+  if(grepl("&", x)) {
+    
+    s = strsplit(temp, split="&")
+    s1 = strsplit(s[[1]][1], split = " ")
+    s2 = as.numeric(s1[[1]][s1[[1]]!=""])
+    s3 = as.numeric(str_trim(s[[1]][2]))
+    d = c(sum(s2),s3)
+    
+  } else if(grepl("win",x)){
+    a = as.numeric(gsub(" win[s].","",x))
+    d = c(a,NA)
+  } else if(grepl("nomination",x)){
+    a = as.numeric(gsub(" nomination[s].","",x))
+    d = c(NA,a)
+  
+  } } else {
+    d = c(NA,NA)
+  }
+  d
+}
+  
+aa =  lapply(df$Awards,myf2)
+aa = do.call("rbind",aa)
+df$wins = aa[,1]
+df$nominations = aa[,2]
+
+sum(!is.na(df$wins) | !is.na(df$nominations))
+DF3 = cbind(topDirector, topWriter, topActors, topLanguage, topCountry)
+df=cbind(df,DF3)
+names(df)
+#df=na.omit(df)
+dim(df)
+
+trainingPercent = seq(from = 0.1, to = 1.0, by = 0.2)
+nPartition = length(trainingPercent)
+RMSE3Train = rep(-999, nPartition)
+RMSE3Test = rep(-999, nPartition)
+set.seed(10)
+for (i in 1 : nPartition) {
+  tmpMSETrain = rep(-999, 10)
+  tmpMSETest = rep(-999, 10)
+  tp = trainingPercent[i]
+  for (j in 1 : 10) {
+    samp = sample(1:nrow(df), round(tp * nrow(df)), replace = FALSE)
+    dfTrain = df[samp,]
+    dfTest = df[-samp,]
+    M3 = lm(Gross~Thriller +
+              robertrodriguez +
+              stevensoderbergh +
+              Horror +
+              Adventure +
+              clinteastwood +
+              stevenspielberg +
+              woodyallen +
+              novel +
+              french +
+              english +
+              usa, dfTrain)
+        tmpMSETrain[j] = sqrt(mean(residuals(M3)^2))
+        tmpMSETest[j] = sqrt(mean((dfTest$Gross - predict(M3, newdata = dfTest))^2))
+    
+  }
+  RMSE3Train[i] = mean(tmpMSETrain)
+  RMSE3Test[i] = mean(tmpMSETest)
+}
+RMSE3Train
+RMSE3Test
+
+df3 = data.frame(trainingSize = trainingPercent * nrow(df), trainingMSE =RMSE3Train, testingMSE = RMSE3Test)
+ggplot() +
+  geom_line(data=df1, aes(x=trainingSize, y = trainingMSE, color = 'train1')) +
+  geom_line(data=df1, aes(x=trainingSize, y = testingMSE, color = 'test1'))+ 
+  geom_line(data=df2, aes(x=trainingSize, y = trainingMSE, color = 'train2')) +
+  geom_line(data=df2, aes(x=trainingSize, y = testingMSE, color = 'test2')) +
+  geom_line(data=df3, aes(x=trainingSize, y = trainingMSE, color = 'train3')) +
+  geom_line(data=df3, aes(x=trainingSize, y = testingMSE, color = 'test3')) +
+  ggtitle("Question 3: RMSE vs train set size ") +
+  xlab("Train set size") +
+  ylab("RMSE") +
+  scale_color_manual(name = "RMSE", values =c(train1='blue',test1='red',train2='green',test2='purple',train3='black',test3='yellow'))
+```
+
+## 4. Numeric and categorical variables
+
+Try to improve the prediction quality as much as possible by using both numeric and non-numeric variables from **Tasks 2 & 3**.
+
+```{r}
+# TODO: Build & evaluate model 4 (numeric & converted non-numeric variables)
+df$Metascore = as.numeric(df$Metascore)
+trainingPercent = seq(from = 0.1, to = 1.0, by = 0.2)
+nPartition = length(trainingPercent)
+RMSE4Train = rep(-999, nPartition)
+RMSE4Test = rep(-999, nPartition)
+set.seed(10)
+for (i in 1 : nPartition) {
+  tmpMSETrain = rep(-999, 10)
+  tmpMSETest = rep(-999, 10)
+  tp = trainingPercent[i]
+  for (j in 1 : 10) {
+    samp = sample(1:nrow(df), round(tp * nrow(df)), replace = FALSE)
+    dfTrain = df[samp,]
+    dfTest = df[-samp,]
+    M4 = lm(Gross~Thriller +
+              robertrodriguez +
+              stevensoderbergh +
+              Horror +
+              Adventure +
+              clinteastwood +
+              stevenspielberg +
+              woodyallen +
+              novel +
+              french +
+              english +
+              usa+
+              Runtime +
+              Budget +
+              I(imdbRating^2) +
+              imdbVotes +
+              tomatoMeter +
+              tomatoRating +
+              tomatoReviews +
+              tomatoFresh +
+              tomatoRotten +
+              tomatoUserMeter +
+              tomatoUserRating +
+              Is_budget_greater_than_3M, dfTrain)
+        tmpMSETrain[j] = sqrt(mean(residuals(M4)^2))
+        tmpMSETest[j] = sqrt(mean((dfTest$Gross - predict(M4, newdata = dfTest))^2))
+    
+  }
+  RMSE4Train[i] = mean(tmpMSETrain)
+  RMSE4Test[i] = mean(tmpMSETest)
+}
+RMSE4Train
+RMSE4Test
+
+
+df4 = data.frame(trainingSize = trainingPercent * nrow(df), trainingMSE =RMSE4Train, testingMSE = RMSE4Test)
+ggplot() +
+  geom_line(data=df1, aes(x=trainingSize, y = trainingMSE, color = 'train1')) +
+  geom_line(data=df1, aes(x=trainingSize, y = testingMSE, color = 'test1'))+ 
+  geom_line(data=df2, aes(x=trainingSize, y = trainingMSE, color = 'train2')) +
+  geom_line(data=df2, aes(x=trainingSize, y = testingMSE, color = 'test2')) +
+  geom_line(data=df3, aes(x=trainingSize, y = trainingMSE, color = 'train3')) +
+  geom_line(data=df3, aes(x=trainingSize, y = testingMSE, color = 'test3')) +
+  geom_line(data=df4, aes(x=trainingSize, y = trainingMSE, color = 'train4')) +
+  geom_line(data=df4, aes(x=trainingSize, y = testingMSE, color = 'test4')) +
+  ggtitle("Question 4: RMSE vs train set size ") +
+  xlab("Train set size") +
+  ylab("RMSE") +
+  scale_color_manual(name = "RMSE", values =c(train1='blue',test1='red',train2='green',test2='purple',train3='black',test3='yellow',train4='dark grey',test4='Orange'))
+```
+## 5. Additional features
+
+Now try creating additional features such as interactions (e.g. `is_genre_comedy` x `is_budget_greater_than_3M`) or deeper analysis of complex variables (e.g. text analysis of full-text columns like `Plot`).
+
+```{r}
+# TODO: Build & evaluate model 4 (numeric & converted non-numeric variables)
+# TODO: Build & evaluate model 5 (numeric, non-numeric and additional features)
+df$interaction1=df$Comedy*df$Is_budget_greater_than_3M
+df$interaction2=df$Adventure*df$stevenspielberg
+df$if_A = grepl("^A[n]",df$Title)
+df$if_A[df$if_A==FALSE]=0
+trainingPercent = seq(from = 0.1, to = 1.0, by = 0.2)
+nPartition = length(trainingPercent)
+RMSE5Train = rep(-999, nPartition)
+RMSE5Test = rep(-999, nPartition)
+set.seed(10)
+for (i in 1 : nPartition) {
+  tmpMSETrain = rep(-999, 10)
+  tmpMSETest = rep(-999, 10)
+  tp = trainingPercent[i]
+  for (j in 1 : 10) {
+    samp = sample(1:nrow(df), round(tp * nrow(df)), replace = FALSE)
+    dfTrain = df[samp,]
+    dfTest = df[-samp,]
+    M5 = lm(Gross~Thriller +
+              robertrodriguez +
+              stevensoderbergh +
+              Horror +
+              Adventure +
+              clinteastwood +
+              stevenspielberg +
+              woodyallen +
+              novel +
+              french +
+              english +
+              usa+
+              Runtime +
+              Budget +
+              I(imdbRating^2) +
+              imdbVotes +
+              tomatoMeter +
+              tomatoRating +
+              tomatoReviews +
+              tomatoFresh +
+              tomatoRotten +
+              tomatoUserMeter +
+              tomatoUserRating +
+              Is_budget_greater_than_3M +
+              interaction1+
+              interaction2+
+              if_A, dfTrain)
+        tmpMSETrain[j] = sqrt(mean(residuals(M5)^2))
+        tmpMSETest[j] = sqrt(mean((dfTest$Gross - predict(M5, newdata = dfTest))^2))
+    
+  }
+  RMSE5Train[i] = mean(tmpMSETrain)
+  RMSE5Test[i] = mean(tmpMSETest)
+}
+RMSE5Train
+RMSE5Test
+
+df5 = data.frame(trainingSize = trainingPercent * nrow(df), trainingMSE =RMSE5Train, testingMSE = RMSE5Test)
+ggplot() +
+  geom_line(data=df1, aes(x=trainingSize, y = trainingMSE, color = 'train1')) +
+  geom_line(data=df1, aes(x=trainingSize, y = testingMSE, color = 'test1'))+ 
+  geom_line(data=df2, aes(x=trainingSize, y = trainingMSE, color = 'train2')) +
+  geom_line(data=df2, aes(x=trainingSize, y = testingMSE, color = 'test2')) +
+  geom_line(data=df3, aes(x=trainingSize, y = trainingMSE, color = 'train3')) +
+  geom_line(data=df3, aes(x=trainingSize, y = testingMSE, color = 'test3')) +
+  geom_line(data=df4, aes(x=trainingSize, y = trainingMSE, color = 'train4')) +
+  geom_line(data=df4, aes(x=trainingSize, y = testingMSE, color = 'test4')) +
+  geom_line(data=df5, aes(x=trainingSize, y = trainingMSE, color = 'train5')) +
+  geom_line(data=df5, aes(x=trainingSize, y = testingMSE, color = 'test5')) +
+  ggtitle("Question 5: RMSE vs train set size ") +
+  xlab("Train set size") +
+  ylab("RMSE") +
+  scale_color_manual(name = "RMSE", values =c(train1='blue',test1='red',train2='green',test2='purple',train3='black',test3='yellow',train4='dark grey',test4='Orange',train5='burlywood',test5='olivedrab'))
+```
+
